@@ -1,118 +1,56 @@
-from flask import Flask, request, redirect, url_for
+from flask import Flask, render_template_string, jsonify
+import random  # For simulating sensor data
+import socket  # To get the IP address
 
 app = Flask(__name__)
 
-# Store submitted data in a list (in-memory data store)
-submissions = []
+# Simulate sensor data (replace with actual data from SCD30)
+def get_sensor_data():
+    return {
+        "temperature": round(random.uniform(20, 30), 2),  # Simulated temperature
+        "co2": round(random.uniform(400, 1000), 2)        # Simulated CO2
+    }
 
-# Home route with a form
-@app.route("/", methods=["GET", "POST"])
-def home():
-    # Handle form submission
-    if request.method == "POST":
-        name = request.form.get("name")
-        message = request.form.get("message")
-        submissions.append({"name": name, "message": message})  # Save data
-        return redirect(url_for("home"))  # Redirect to avoid form resubmission
+# Function to get the current IP address of the Raspberry Pi
+def get_ip_address():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # Doesn't actually connect, just checks for the IP
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+    except Exception:
+        ip = "127.0.0.1"  # Default to localhost if unable to determine IP
+    finally:
+        s.close()
+    return ip
 
-    # Display the form and the table of submissions
-    return f"""
+@app.route('/')
+def index():
+    data = get_sensor_data()
+    return render_template_string("""
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Window control interface</title>
+        <title>Real-Time Sensor Data</title>
         <style>
-            body {{
-                font-family: Arial, sans-serif;
-                max-width: 800px;
-                margin: auto;
-                padding: 20px;
-            }}
-            h1 {{ color: #333; }}
-            form {{
-                margin-bottom: 20px;
-            }}
-            label, input, textarea {{
-                display: block;
-                margin: 5px 0;
-            }}
-            table {{
-                width: 100%;
-                border-collapse: collapse;
-            }}
-            th, td {{
-                border: 1px solid #ddd;
-                padding: 8px;
-            }}
-            th {{
-                background-color: #f4f4f4;
-            }}
+            body { font-family: Arial, sans-serif; text-align: center; }
+            h1 { color: #333; }
+            .data { font-size: 24px; margin-top: 20px; }
         </style>
+        <meta http-equiv="refresh" content="5">  <!-- Refresh every 5 seconds -->
     </head>
     <body>
-        <h1>Window control interface!</h1>
-        <p>Data shown below:</p>
-
-        <form method="post">
-            <label for="name">Name:</label>
-            <input type="text" id="name" name="name" required>
-
-            <label for="message">Message:</label>
-            <textarea id="message" name="message" required></textarea>
-
-            <button type="submit">Submit</button>
-        </form>
-
-        <h2>Submitted Messages:</h2>
-        <table>
-            <tr>
-                <th>Name</th>
-                <th>Message</th>
-            </tr>
-            {" ".join([f"<tr><td>{entry['name']}</td><td>{entry['message']}</td></tr>" for entry in submissions])}
-        </table>
-
+        <h1>Real-Time Sensor Data</h1>
+        <div class="data">Temperature: {{ data['temperature'] }} °C</div>
+        <div class="data">CO2: {{ data['co2'] }} ppm</div>
+        <p>Your public access URL: <strong>http://{{ ip }}:5000</strong></p>
     </body>
     </html>
-    """
-
-# About page with additional information
-@app.route("/about")
-def about():
-    return """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>About Page</title>
-        <style>
-            body {{
-                font-family: Arial, sans-serif;
-                max-width: 800px;
-                margin: auto;
-                padding: 20px;
-            }}
-            h1 {{ color: #333; }}
-        </style>
-    </head>
-    <body>
-        <h1>About This Website</h1>
-        <p>This is a more complex version of a website built using Flask in a single Python file.</p>
-        <p>It includes:</p>
-        <ul>
-            <li>A form to submit data</li>
-            <li>In-memory storage of submitted data</li>
-            <li>A styled table to display the data</li>
-        </ul>
-        <a href="/">Home</a>
-    </body>
-    </html>
-    """
+    """, data=data, ip=get_ip_address())
 
 if __name__ == "__main__":
+    ip_address = get_ip_address()
+    print(f"Server is running. Access it at: http://{ip_address}:5000")
     app.run(host="0.0.0.0", port=5000, debug=True)
-
-
