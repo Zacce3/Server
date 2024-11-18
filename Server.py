@@ -12,7 +12,7 @@ serial_data = "No data yet"
 
 # Serial connection setup (change COM4 if necessary)
 try:
-    ser = serial.Serial('COM4', 115200, timeout=1)
+    ser = serial.Serial('COM7', 115200, timeout=1)
     time.sleep(2)  # Allow time for the serial connection to initialize
 
     # Register the cleanup function to close the serial connection on exit
@@ -66,19 +66,44 @@ def index():
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Real-Time Serial Data</title>
         <style>
-            body {{ font-family: Arial, sans-serif; text-align: center; }}
-            h1 {{ color: #333; }}
-            .data {{ font-size: 24px; margin-top: 20px; }}
-        </style>
+    body {{ '{{' }} font-family: Arial, sans-serif; text-align: center; {{ '}}' }}
+    h1 {{ '{{' }} color: #333; {{ '}}' }}
+    .data {{ '{{' }} font-size: 24px; margin-top: 20px; {{ '}}' }}
+</style>
+
         <meta http-equiv="refresh" content="5">  <!-- Refresh every 5 seconds -->
     </head>
     <body>
         <h1>Real-Time Serial Data</h1>
         <div class="data">Data from Mega: {{ data }}</div>
         <p>Your public access URL: <strong>http://{{ ip }}:5000</strong></p>
+
+        <!-- Add a button -->
+        <form action="/action" method="post">
+            <button type="submit">Click Me</button>
+        </form>
     </body>
     </html>
     """, data=serial_data, ip=get_ip_address())
+
+@app.route('/action', methods=['POST'])
+def action():
+    if ser:
+        ser.write(b'1')
+    # Add your logic here, e.g., interacting with the serial device
+    return render_template_string("""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <title>Action Triggered</title>
+    </head>
+    <body>
+        <h1>Button Pressed!</h1>
+        <a href="/">Go Back</a>
+    </body>
+    </html>
+    """)
+
 
 if __name__ == "__main__":
     ip_address = get_ip_address()
