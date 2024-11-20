@@ -4,6 +4,9 @@ import threading
 import time
 import socket
 import atexit
+import threading
+
+sensor_data_lock = threading.Lock()
 
 app = Flask(__name__)
 
@@ -34,39 +37,38 @@ except serial.SerialException as e:
 # Function to constantly read serial data
 def read_serial():
     global sensor_data
+    buffer = ''
     while True:
         if ser:
             try:
-                if ser.in_waiting > 0:
-                    line = ser.readline().decode('utf-8', errors='ignore').strip()
-                    if line.startswith("CO2:"):
-                        # Parse sensor data
-                        parts = line.split(",")
-                        if len(parts) >= 5:
-                            sensor_data["co2"] = parts[0].split(":")[1].strip() + " ppm"
-                            sensor_data["temperature"] = parts[1].split(":")[1].strip() + " °C"
-                            sensor_data["humidity"] = parts[2].split(":")[1].strip() + " %"
-                            sensor_data["distance"] = parts[3].split(":")[1].strip() + " cm"
-                            sensor_data["window_state"] = "Open" if "Open" in parts[4] else "Closed"
-                    elif line.startswith("Thresholds updated:"):
-                        # Skip confirmation messages
-                        pass
-                    elif line.startswith("Thresholds:"):
-                        # Parse threshold values
-                        thresholds = line[len("Thresholds:"):].split(",")
-                        if len(thresholds) == 6:
-                            sensor_data["co2_open_threshold"] = thresholds[0].strip()
-                            sensor_data["co2_close_threshold"] = thresholds[1].strip()
-                            sensor_data["temp_open_threshold"] = thresholds[2].strip()
-                            sensor_data["temp_close_threshold"] = thresholds[3].strip()
-                            sensor_data["humidity_open_threshold"] = thresholds[4].strip()
-                            sensor_data["humidity_close_threshold"] = thresholds[5].strip()
-                    else:
-                        # Handle other serial messages if necessary
-                        pass
+                while ser.in_waiting > 0:
+                    buffer += ser.read(ser.in_waiting).decode('utf-8', errors='ignore')
+                    if '\n' in buffer:
+                        lines = buffer.split('\n')
+                        buffer = lines[-1]  # Last part is incomplete, keep it in buffer
+                        for line in lines[:-1]:
+                            line = line.strip()
+                            if line.startswith("CO2:"):
+                                parts = line.split(",")
+                                if len(parts) >= 5:
+                                    # Function to sanitize numerical strings
+                                    def sanitize_num_str(s):
+                                        return s.strip().replace(',', '.')
+                                    co2_str = sanitize_num_str(parts[0].split(":")[1])
+                                    temp_str = sanitize_num_str(parts[1].split(":")[1])
+                                    humidity_str = sanitize_num_str(parts[2].split(":")[1])
+                                    distance_str = sanitize_num_str(parts[3].split(":")[1])
+                                    with sensor_data_lock:
+                                        sensor_data["co2"] = co2_str 
+                                        sensor_data["temperature"] = temp_str 
+                                        sensor_data["humidity"] = humidity_str
+                                        sensor_data["distance"] = distance_str
+                                        sensor_data["window_state"] = "Open" if "Open" in parts[4] else "Closed"
             except Exception as e:
                 print(f"Error reading serial: {e}")
         time.sleep(0.1)
+
+
 
 # Start the serial reading in a separate thread
 if ser:
@@ -151,7 +153,9 @@ def index():
 
 @app.route('/data')
 def data():
-    return jsonify(sensor_data)
+    with sensor_data_lock:
+        return jsonify(sensor_data)
+
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
@@ -164,6 +168,14 @@ def settings():
         humidity_open_threshold = request.form.get('humidity_open_threshold', sensor_data["humidity_open_threshold"])
         humidity_close_threshold = request.form.get('humidity_close_threshold', sensor_data["humidity_close_threshold"])
         
+        # Replace commas with periods in all threshold values
+        co2_open_threshold = co2_open_threshold.replace(',', '.')
+        co2_close_threshold = co2_close_threshold.replace(',', '.')
+        temp_open_threshold = temp_open_threshold.replace(',', '.')
+        temp_close_threshold = temp_close_threshold.replace(',', '.')
+        humidity_open_threshold = humidity_open_threshold.replace(',', '.')
+        humidity_close_threshold = humidity_close_threshold.replace(',', '.')
+
         # Update local sensor_data dictionary
         sensor_data.update({
             "co2_open_threshold": co2_open_threshold,
@@ -216,21 +228,22 @@ def settings():
         </head>
         <body>
             <h1>Update Thresholds</h1>
+            <p>Please use a period (.) as the decimal separator.</p>
             <div class="thresholds">
                 <div class="container">
                     <form method="post">
                         <label for="co2_open_threshold">CO2 Open Threshold (ppm):</label>
-                        <input type="number" step="0.1" name="co2_open_threshold" value="{{ co2_open_threshold }}" required><br>
+                        <input type="text" pattern="[0-9]+([\.][0-9]+)?" name="co2_open_threshold" value="{{ co2_open_threshold }}" placeholder="e.g., 1200.0" required><br>
                         <label for="co2_close_threshold">CO2 Close Threshold (ppm):</label>
-                        <input type="number" step="0.1" name="co2_close_threshold" value="{{ co2_close_threshold }}" required><br>
+                        <input type="text" pattern="[0-9]+([\.][0-9]+)?" name="co2_close_threshold" value="{{ co2_close_threshold }}" placeholder="e.g., 800.0" required><br>
                         <label for="temp_open_threshold">Temperature Open Threshold (°C):</label>
-                        <input type="number" step="0.1" name="temp_open_threshold" value="{{ temp_open_threshold }}" required><br>
+                        <input type="text" pattern="[0-9]+([\.][0-9]+)?" name="temp_open_threshold" value="{{ temp_open_threshold }}" placeholder="e.g., 27.0" required><br>
                         <label for="temp_close_threshold">Temperature Close Threshold (°C):</label>
-                        <input type="number" step="0.1" name="temp_close_threshold" value="{{ temp_close_threshold }}" required><br>
+                        <input type="text" pattern="[0-9]+([\.][0-9]+)?" name="temp_close_threshold" value="{{ temp_close_threshold }}" placeholder="e.g., 23.0" required><br>
                         <label for="humidity_open_threshold">Humidity Open Threshold (%):</label>
-                        <input type="number" step="0.1" name="humidity_open_threshold" value="{{ humidity_open_threshold }}" required><br>
+                        <input type="text" pattern="[0-9]+([\.][0-9]+)?" name="humidity_open_threshold" value="{{ humidity_open_threshold }}" placeholder="e.g., 70.0" required><br>
                         <label for="humidity_close_threshold">Humidity Close Threshold (%):</label>
-                        <input type="number" step="0.1" name="humidity_close_threshold" value="{{ humidity_close_threshold }}" required><br><br>
+                        <input type="text" pattern="[0-9]+([\.][0-9]+)?" name="humidity_close_threshold" value="{{ humidity_close_threshold }}" placeholder="e.g., 60.0" required><br><br>
                         <button type="submit" name="update_thresholds" value="Update">Update Thresholds</button>
                     </form>
                 </div>
