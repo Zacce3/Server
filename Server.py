@@ -13,10 +13,16 @@ sensor_data = {
     "temperature": "No data",
     "humidity": "No data",
     "distance": "No data",
-    "window_state": "Unknown"
+    "window_state": "Unknown",
+    "co2_open_threshold": "1000.0",
+    "co2_close_threshold": "800.0",
+    "temp_open_threshold": "27.0",
+    "temp_close_threshold": "23.0",
+    "humidity_open_threshold": "70.0",
+    "humidity_close_threshold": "60.0"
 }
 
-# Serial connection setup (change COM4 if necessary)
+# Serial connection setup (change 'COM4' to your actual port)
 try:
     ser = serial.Serial('COM4', 9600, timeout=1)
     time.sleep(2)  # Allow time for the serial connection to initialize
@@ -32,14 +38,32 @@ def read_serial():
         if ser:
             try:
                 if ser.in_waiting > 0:
-                    line = ser.readline().decode('utf-8').strip()
-                    if line.startswith("CO2"):
+                    line = ser.readline().decode('utf-8', errors='ignore').strip()
+                    if line.startswith("CO2:"):
+                        # Parse sensor data
                         parts = line.split(",")
-                        sensor_data["co2"] = parts[0].split(":")[1].strip() + " ppm"
-                        sensor_data["temperature"] = parts[1].split(":")[1].strip() + " °C"
-                        sensor_data["humidity"] = parts[2].split(":")[1].strip() + " %"
-                        sensor_data["distance"] = parts[3].split(":")[1].strip() + " cm"
-                        sensor_data["window_state"] = "Open" if "Open" in parts[4] else "Closed"
+                        if len(parts) >= 5:
+                            sensor_data["co2"] = parts[0].split(":")[1].strip() + " ppm"
+                            sensor_data["temperature"] = parts[1].split(":")[1].strip() + " °C"
+                            sensor_data["humidity"] = parts[2].split(":")[1].strip() + " %"
+                            sensor_data["distance"] = parts[3].split(":")[1].strip() + " cm"
+                            sensor_data["window_state"] = "Open" if "Open" in parts[4] else "Closed"
+                    elif line.startswith("Thresholds updated:"):
+                        # Skip confirmation messages
+                        pass
+                    elif line.startswith("Thresholds:"):
+                        # Parse threshold values
+                        thresholds = line[len("Thresholds:"):].split(",")
+                        if len(thresholds) == 6:
+                            sensor_data["co2_open_threshold"] = thresholds[0].strip()
+                            sensor_data["co2_close_threshold"] = thresholds[1].strip()
+                            sensor_data["temp_open_threshold"] = thresholds[2].strip()
+                            sensor_data["temp_close_threshold"] = thresholds[3].strip()
+                            sensor_data["humidity_open_threshold"] = thresholds[4].strip()
+                            sensor_data["humidity_close_threshold"] = thresholds[5].strip()
+                    else:
+                        # Handle other serial messages if necessary
+                        pass
             except Exception as e:
                 print(f"Error reading serial: {e}")
         time.sleep(0.1)
@@ -53,7 +77,8 @@ if ser:
 def get_ip_address():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        s.connect(("8.8.8.8", 80))
+        # This doesn't have to be reachable
+        s.connect(("10.255.255.255", 1))
         ip = s.getsockname()[0]
     except Exception:
         ip = "127.0.0.1"
@@ -64,16 +89,16 @@ def get_ip_address():
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
-        command = request.form.get('command')
-        if ser and command in ['O', 'C']:
-            ser.write(command.encode('utf-8'))
+        if 'command' in request.form:
+            # Handle 'O' (Open) and 'C' (Close) commands
+            command = request.form.get('command')
+            if ser and command in ['O', 'C']:
+                ser.write(command.encode('utf-8'))
     return render_template_string("""
     <!DOCTYPE html>
     <html lang="en">
     <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Actuator Control</title>
+        <title>Real-Time Actuator Control</title>
         <style>
             body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
             h1 { color: #333; }
@@ -84,22 +109,28 @@ def index():
     </head>
     <body>
         <h1>Real-Time Actuator Control</h1>
-        <div class="data" id="sensor-data">
+        <!-- Display sensor data -->
+        <div class="data">
             <p>CO2 Concentration: <span id="co2">{{ co2 }}</span></p>
             <p>Temperature: <span id="temperature">{{ temperature }}</span></p>
             <p>Humidity: <span id="humidity">{{ humidity }}</span></p>
             <p>Distance: <span id="distance">{{ distance }}</span></p>
             <p>Window State: <span id="window_state">{{ window_state }}</span></p>
         </div>
+        <!-- Control buttons -->
         <div class="control">
             <form method="post">
                 <button name="command" value="O">Open Window</button>
                 <button name="command" value="C">Close Window</button>
             </form>
+            <!-- Settings button -->
+            <form action="/settings" method="get" style="display:inline;">
+                <button type="submit">Settings</button>
+            </form>
         </div>
-        <p>Access the app at: <strong>http://{{ ip }}:5000</strong></p>
+        <!-- JavaScript for data fetching -->
         <script>
-            setInterval(() => {
+            function fetchData() {
                 fetch('/data')
                     .then(response => response.json())
                     .then(data => {
@@ -108,9 +139,12 @@ def index():
                         document.getElementById('humidity').innerText = data.humidity;
                         document.getElementById('distance').innerText = data.distance;
                         document.getElementById('window_state').innerText = data.window_state;
-                    });
-            }, 2000); // Fetch data every 2 seconds
+                    })
+                    .catch(error => console.error('Error fetching data:', error));
+            }
+            setInterval(fetchData, 2000); // Fetch data every 2 seconds
         </script>
+        <p>Access the app at: <strong>http://{{ ip }}:5000</strong></p>
     </body>
     </html>
     """, **sensor_data, ip=get_ip_address())
@@ -118,6 +152,93 @@ def index():
 @app.route('/data')
 def data():
     return jsonify(sensor_data)
+
+@app.route('/settings', methods=['GET', 'POST'])
+def settings():
+    if request.method == 'POST':
+        # Collect the updated thresholds from the form
+        co2_open_threshold = request.form.get('co2_open_threshold', sensor_data["co2_open_threshold"])
+        co2_close_threshold = request.form.get('co2_close_threshold', sensor_data["co2_close_threshold"])
+        temp_open_threshold = request.form.get('temp_open_threshold', sensor_data["temp_open_threshold"])
+        temp_close_threshold = request.form.get('temp_close_threshold', sensor_data["temp_close_threshold"])
+        humidity_open_threshold = request.form.get('humidity_open_threshold', sensor_data["humidity_open_threshold"])
+        humidity_close_threshold = request.form.get('humidity_close_threshold', sensor_data["humidity_close_threshold"])
+        
+        # Update local sensor_data dictionary
+        sensor_data.update({
+            "co2_open_threshold": co2_open_threshold,
+            "co2_close_threshold": co2_close_threshold,
+            "temp_open_threshold": temp_open_threshold,
+            "temp_close_threshold": temp_close_threshold,
+            "humidity_open_threshold": humidity_open_threshold,
+            "humidity_close_threshold": humidity_close_threshold
+        })
+
+        # Send updated thresholds to Arduino
+        if ser:
+            # Build the command string
+            thresholds_string = f"T,{co2_open_threshold},{co2_close_threshold},{temp_open_threshold},{temp_close_threshold},{humidity_open_threshold},{humidity_close_threshold}\n"
+            ser.write(thresholds_string.encode('utf-8'))
+            
+            print(f"Sent thresholds to Arduino: {thresholds_string}")
+            time.sleep(0.2)
+
+        # Confirmation message
+        return render_template_string("""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <title>Settings Updated</title>
+        </head>
+        <body>
+            <h1>Thresholds Update Sent to Arduino!</h1>
+            <p>New thresholds have been applied.</p>
+            <a href="/settings">Back to Settings</a> | <a href="/">Return to Main Page</a>
+        </body>
+        </html>
+        """)
+    else:
+        # Render settings page with current values
+        return render_template_string("""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <title>Update Thresholds</title>
+            <style>
+                body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
+                h1 { color: #333; }
+                .thresholds { font-size: 18px; margin: 10px; }
+                input { padding: 5px; font-size: 16px; margin: 5px; width: 200px; }
+                label { display: block; margin: 5px 0 5px; }
+                button { padding: 10px 20px; font-size: 16px; margin: 5px; }
+                .container { display: inline-block; text-align: left; }
+            </style>
+        </head>
+        <body>
+            <h1>Update Thresholds</h1>
+            <div class="thresholds">
+                <div class="container">
+                    <form method="post">
+                        <label for="co2_open_threshold">CO2 Open Threshold (ppm):</label>
+                        <input type="number" step="0.1" name="co2_open_threshold" value="{{ co2_open_threshold }}" required><br>
+                        <label for="co2_close_threshold">CO2 Close Threshold (ppm):</label>
+                        <input type="number" step="0.1" name="co2_close_threshold" value="{{ co2_close_threshold }}" required><br>
+                        <label for="temp_open_threshold">Temperature Open Threshold (°C):</label>
+                        <input type="number" step="0.1" name="temp_open_threshold" value="{{ temp_open_threshold }}" required><br>
+                        <label for="temp_close_threshold">Temperature Close Threshold (°C):</label>
+                        <input type="number" step="0.1" name="temp_close_threshold" value="{{ temp_close_threshold }}" required><br>
+                        <label for="humidity_open_threshold">Humidity Open Threshold (%):</label>
+                        <input type="number" step="0.1" name="humidity_open_threshold" value="{{ humidity_open_threshold }}" required><br>
+                        <label for="humidity_close_threshold">Humidity Close Threshold (%):</label>
+                        <input type="number" step="0.1" name="humidity_close_threshold" value="{{ humidity_close_threshold }}" required><br><br>
+                        <button type="submit" name="update_thresholds" value="Update">Update Thresholds</button>
+                    </form>
+                </div>
+            </div>
+            <a href="/">Return to Main Page</a>
+        </body>
+        </html>
+        """, **sensor_data)
 
 if __name__ == "__main__":
     ip_address = get_ip_address()
