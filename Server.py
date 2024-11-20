@@ -1,43 +1,48 @@
-from flask import Flask, render_template_string
+from flask import Flask, jsonify, render_template_string, request
 import serial
 import threading
 import time
 import socket
-import atexit  # Import atexit to handle cleanup
+import atexit
 
 app = Flask(__name__)
 
 # Serial data storage
-serial_data = "No data yet"
+sensor_data = {
+    "co2": "No data",
+    "temperature": "No data",
+    "humidity": "No data",
+    "distance": "No data",
+    "window_state": "Unknown"
+}
 
 # Serial connection setup (change COM4 if necessary)
 try:
-    ser = serial.Serial('COM7', 115200, timeout=1)
+    ser = serial.Serial('COM4', 9600, timeout=1)
     time.sleep(2)  # Allow time for the serial connection to initialize
-
-    # Register the cleanup function to close the serial connection on exit
     atexit.register(ser.close)
 except serial.SerialException as e:
     print(f"Serial connection failed: {e}")
     ser = None
-    serial_data = "No serial connection"
 
 # Function to constantly read serial data
 def read_serial():
-    global serial_data
+    global sensor_data
     while True:
         if ser:
             try:
                 if ser.in_waiting > 0:
-                    serial_data = ser.readline().decode('utf-8').strip()
-            except serial.SerialException as e:
-                serial_data = f"Serial disconnected: {e}"
-                break
+                    line = ser.readline().decode('utf-8').strip()
+                    if line.startswith("CO2"):
+                        parts = line.split(",")
+                        sensor_data["co2"] = parts[0].split(":")[1].strip() + " ppm"
+                        sensor_data["temperature"] = parts[1].split(":")[1].strip() + " °C"
+                        sensor_data["humidity"] = parts[2].split(":")[1].strip() + " %"
+                        sensor_data["distance"] = parts[3].split(":")[1].strip() + " cm"
+                        sensor_data["window_state"] = "Open" if "Open" in parts[4] else "Closed"
             except Exception as e:
-                serial_data = f"Error reading serial: {e}"
-        else:
-            serial_data = "No serial connection"
-        time.sleep(0.1)  # Add a delay to reduce CPU usage
+                print(f"Error reading serial: {e}")
+        time.sleep(0.1)
 
 # Start the serial reading in a separate thread
 if ser:
@@ -56,54 +61,63 @@ def get_ip_address():
         s.close()
     return ip
 
-@app.route('/')
+@app.route('/', methods=['GET', 'POST'])
 def index():
+    if request.method == 'POST':
+        command = request.form.get('command')
+        if ser and command in ['O', 'C']:
+            ser.write(command.encode('utf-8'))
     return render_template_string("""
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Real-Time Serial Data</title>
+        <title>Actuator Control</title>
         <style>
-    body {{ '{{' }} font-family: Arial, sans-serif; text-align: center; {{ '}}' }}
-    h1 {{ '{{' }} color: #333; {{ '}}' }}
-    .data {{ '{{' }} font-size: 24px; margin-top: 20px; {{ '}}' }}
-</style>
-
-        <meta http-equiv="refresh" content="5">  <!-- Refresh every 5 seconds -->
+            body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
+            h1 { color: #333; }
+            .data { font-size: 18px; margin: 10px; }
+            .control { margin: 20px; }
+            button { padding: 10px 20px; font-size: 16px; margin: 5px; }
+        </style>
     </head>
     <body>
-        <h1>Real-Time Serial Data</h1>
-        <div class="data">Data from Mega: {{ data }}</div>
-        <p>Your public access URL: <strong>http://{{ ip }}:5000</strong></p>
-
-        <!-- Add a button -->
-        <form action="/action" method="post">
-            <button type="submit">Click Me</button>
-        </form>
+        <h1>Real-Time Actuator Control</h1>
+        <div class="data" id="sensor-data">
+            <p>CO2 Concentration: <span id="co2">{{ co2 }}</span></p>
+            <p>Temperature: <span id="temperature">{{ temperature }}</span></p>
+            <p>Humidity: <span id="humidity">{{ humidity }}</span></p>
+            <p>Distance: <span id="distance">{{ distance }}</span></p>
+            <p>Window State: <span id="window_state">{{ window_state }}</span></p>
+        </div>
+        <div class="control">
+            <form method="post">
+                <button name="command" value="O">Open Window</button>
+                <button name="command" value="C">Close Window</button>
+            </form>
+        </div>
+        <p>Access the app at: <strong>http://{{ ip }}:5000</strong></p>
+        <script>
+            setInterval(() => {
+                fetch('/data')
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('co2').innerText = data.co2;
+                        document.getElementById('temperature').innerText = data.temperature;
+                        document.getElementById('humidity').innerText = data.humidity;
+                        document.getElementById('distance').innerText = data.distance;
+                        document.getElementById('window_state').innerText = data.window_state;
+                    });
+            }, 2000); // Fetch data every 2 seconds
+        </script>
     </body>
     </html>
-    """, data=serial_data, ip=get_ip_address())
+    """, **sensor_data, ip=get_ip_address())
 
-@app.route('/action', methods=['POST'])
-def action():
-    if ser:
-        ser.write(b'1')
-    # Add your logic here, e.g., interacting with the serial device
-    return render_template_string("""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <title>Action Triggered</title>
-    </head>
-    <body>
-        <h1>Button Pressed!</h1>
-        <a href="/">Go Back</a>
-    </body>
-    </html>
-    """)
-
+@app.route('/data')
+def data():
+    return jsonify(sensor_data)
 
 if __name__ == "__main__":
     ip_address = get_ip_address()
