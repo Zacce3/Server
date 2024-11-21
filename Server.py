@@ -95,7 +95,7 @@ def index():
             # Handle 'O' (Open) and 'C' (Close) commands
             command = request.form.get('command')
             if ser and command in ['O', 'C']:
-                ser.write(command.encode('utf-8'))
+                ser.write((command + '\n').encode('utf-8'))
     return render_template_string("""
     <!DOCTYPE html>
     <html lang="en">

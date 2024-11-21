@@ -1,6 +1,6 @@
 #include "WindowControl.h"
 
-float CO2_OPEN_THRESHOLD = 1000.0;    // ppm
+float CO2_OPEN_THRESHOLD = 1500;    // ppm
 float CO2_CLOSE_THRESHOLD = 800.0;    // ppm
 float TEMP_OPEN_THRESHOLD = 27.0;     // °C
 float TEMP_CLOSE_THRESHOLD = 23.0;    // °C
