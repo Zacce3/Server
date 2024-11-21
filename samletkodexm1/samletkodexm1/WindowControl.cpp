@@ -1,11 +1,11 @@
 #include "WindowControl.h"
 
-double CO2_OPEN_THRESHOLD = 1000.0;    // ppm
-double CO2_CLOSE_THRESHOLD = 800.0;    // ppm
-double TEMP_OPEN_THRESHOLD = 27.0;     // °C
-double TEMP_CLOSE_THRESHOLD = 23.0;    // °C
-double HUMIDITY_OPEN_THRESHOLD = 70.0; // %
-double HUMIDITY_CLOSE_THRESHOLD = 60.0; // %
+float CO2_OPEN_THRESHOLD = 1000.0;    // ppm
+float CO2_CLOSE_THRESHOLD = 800.0;    // ppm
+float TEMP_OPEN_THRESHOLD = 27.0;     // °C
+float TEMP_CLOSE_THRESHOLD = 23.0;    // °C
+float HUMIDITY_OPEN_THRESHOLD = 70.0; // %
+float HUMIDITY_CLOSE_THRESHOLD = 60.0; // %
 // Function to initialize any dependencies (if needed)
 void setupWindowControl() {
     // Currently, no additional setup is required for this module.

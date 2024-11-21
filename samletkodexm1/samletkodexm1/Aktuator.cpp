@@ -72,3 +72,27 @@ void handleWindowCommands() {
         }
     }
 }
+
+void handleSerialCommands() {
+    static String inputString = ""; // A String to hold incoming data
+    while (Serial.available() > 0) {
+        char inChar = (char)Serial.read();  // Read a character
+        inputString += inChar;              // Append to inputString
+
+        if (inChar == '\n') {               // If the incoming character is a newline
+            inputString.trim();             // Remove leading and trailing whitespace
+
+            if (inputString.startsWith("T,")) {
+                processThresholdCommand(inputString);
+            } else if (inputString.equalsIgnoreCase("O")) {
+                openWindow();
+            } else if (inputString.equalsIgnoreCase("C")) {
+                closeWindow();
+            } else {
+                Serial.println("Invalid command. Use 'O' for open, 'C' for close, or 'T,' for thresholds.");
+            }
+            inputString = ""; // Clear the string for the next command
+        }
+    }
+}
+

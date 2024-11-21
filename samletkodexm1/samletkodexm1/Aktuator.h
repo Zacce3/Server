@@ -20,5 +20,7 @@ void openWindow();
 void closeWindow();
 void stopMotor();
 void handleWindowCommands(); // Function to process UART motor commands
+void handleSerialCommands();
+
 
 #endif

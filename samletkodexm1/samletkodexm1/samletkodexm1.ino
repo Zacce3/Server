@@ -49,9 +49,9 @@ void loop() {
     }
 
     // Always check for UART commands
-    handleWindowCommands();
-
+    //handleWindowCommands();
+    handleSerialCommands();
     // Check for threshold update commands
-    handleThresholdUpdate();
+    //andleThresholdUpdate();
 }
 

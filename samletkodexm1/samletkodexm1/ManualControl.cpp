@@ -64,7 +64,7 @@ void processThresholdCommand(String input) {
             start = commandData.length();
         }
 
-        values[index] = valueStr.toDouble();
+        values[index] = valueStr.toFloat();
         index++;
     }
 
