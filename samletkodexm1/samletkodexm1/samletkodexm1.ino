@@ -28,6 +28,10 @@ void setup() {
 }
 
 void loop() {
+
+    while(handleSystemToggle()==true){
+      handleManualToggle(isWindowOpen);
+    }
     static unsigned long lastUpdateTime = 0;  // For timing control
     const unsigned long updateInterval = 2000;  // Update interval in milliseconds
 

@@ -5,8 +5,12 @@
 // Global variable to track window state
 extern bool isWindowOpen;
 
+
 void setupManualControl() {
     pinMode(manualTogglePin, INPUT); // Active-high input
+    pinMode(systemTogglePinOn, INPUT);// Active-high input
+    pinMode(systemTogglePinOff, INPUT);// Active-high input
+    
     Serial.println("Manual Control Initialized.");
 }
 
@@ -26,6 +30,13 @@ void handleManualToggle(bool &isWindowOpen) {
             delay(50); // Debounce delay
         }
     }
+}
+bool handleSystemToggle(){
+  
+  if(digitalRead(systemTogglePinOn)==HIGH){
+    return false;
+  }
+  return true;
 }
 // In your Arduino code
 void handleThresholdUpdate() {
