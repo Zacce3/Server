@@ -116,7 +116,6 @@ def index():
             <p>CO2 Concentration: <span id="co2">{{ co2 }}</span></p>
             <p>Temperature: <span id="temperature">{{ temperature }}</span></p>
             <p>Humidity: <span id="humidity">{{ humidity }}</span></p>
-            <p>Distance: <span id="distance">{{ distance }}</span></p>
             <p>Window State: <span id="window_state">{{ window_state }}</span></p>
         </div>
         <!-- Control buttons -->
