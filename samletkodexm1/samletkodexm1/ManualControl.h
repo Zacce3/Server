@@ -10,6 +10,7 @@
 #define systemTogglePinOn 3
 
 #define systemTogglePinOff 4
+#define systemLight 5
 bool handleSystemToggle();
 void setupManualControl();
 void handleManualToggle(bool &isWindowOpen);

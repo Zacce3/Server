@@ -31,9 +31,11 @@ void loop() {
 
     while(handleSystemToggle()==true){
       handleManualToggle(isWindowOpen);
+      digitalWrite(systemLight,HIGH);
       
       
     }
+     digitalWrite(systemLight,LOW);
     
     static unsigned long lastUpdateTime = 0;  // For timing control
     const unsigned long updateInterval = 2000;  // Update interval in milliseconds
