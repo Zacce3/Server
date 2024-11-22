@@ -39,6 +39,7 @@ bool handleSystemToggle(){
   return true;
 }
 // In your Arduino code
+//SKAL MÅSKE FJERNES
 void handleThresholdUpdate() {
     static String inputString = ""; // A String to hold incoming data
     while (Serial.available() > 0) {

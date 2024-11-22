@@ -21,8 +21,9 @@ void openWindow() {
 
     // Keep driving until the "fully opened" microswitch is triggered
     while (digitalRead(openWindowSwitch) == LOW) {
-        handleThresholdUpdate();       // Check for threshold update commands
-        handleWindowCommands();        // Check for window commands
+        //handleThresholdUpdate();       // Check for threshold update commands
+        //handleWindowCommands();
+         handleSerialCommands();        // Check for window commands
         handleManualToggle(isWindowOpen); // Check for manual toggle
         delay(10); // Small delay to prevent CPU overuse
     }
@@ -41,8 +42,9 @@ void closeWindow() {
 
     // Keep driving until the "fully closed" microswitch is triggered
     while (digitalRead(closeWindowSwitch) == LOW) {
-        handleThresholdUpdate();       // Check for threshold update commands
-        handleWindowCommands();        // Check for window commands
+        //handleThresholdUpdate(); SKAL MÅSKE FJERNES      // Check for threshold update commands
+        //handleWindowCommands(); SKAL MÅSKE FJERNES       // Check for window commands
+         handleSerialCommands();
         handleManualToggle(isWindowOpen); // Check for manual toggle
         delay(10); // Small delay to prevent CPU overuse
     }
@@ -59,7 +61,7 @@ void stopMotor() {
     analogWrite(ENA, 0);   // Stop motor
     Serial.println("Motor stopped.");
 }
-
+//SKAL MÅSKE FJERENS
 void handleWindowCommands() {
     if (Serial.available() > 0) {
         char command = Serial.read();
