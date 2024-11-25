@@ -21,9 +21,9 @@ void openWindow() {
 
     // Keep driving until the "fully opened" microswitch is triggered
     while (digitalRead(openWindowSwitch) == LOW) {
-        //handleThresholdUpdate();       // Check for threshold update commands
-        //handleWindowCommands();
-         handleSerialCommands();        // Check for window commands
+        handleThresholdUpdate();       // Check for threshold update commands
+        handleWindowCommands();
+         //andleSerialCommands();        // Check for window commands
         handleManualToggle(isWindowOpen); // Check for manual toggle
         delay(10); // Small delay to prevent CPU overuse
     }
@@ -42,9 +42,9 @@ void closeWindow() {
 
     // Keep driving until the "fully closed" microswitch is triggered
     while (digitalRead(closeWindowSwitch) == LOW) {
-        //handleThresholdUpdate(); SKAL MÅSKE FJERNES      // Check for threshold update commands
-        //handleWindowCommands(); SKAL MÅSKE FJERNES       // Check for window commands
-         handleSerialCommands();
+        handleThresholdUpdate();// SKAL MÅSKE FJERNES      // Check for threshold update commands
+        handleWindowCommands(); //SKAL MÅSKE FJERNES       // Check for window commands
+         //handleSerialCommands();
         handleManualToggle(isWindowOpen); // Check for manual toggle
         delay(10); // Small delay to prevent CPU overuse
     }

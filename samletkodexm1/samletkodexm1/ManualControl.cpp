@@ -11,7 +11,8 @@ void setupManualControl() {
     pinMode(systemTogglePinOn, INPUT);// Active-high input
     pinMode(systemTogglePinOff, INPUT);// Active-high input
     pinMode(systemLight ,OUTPUT);
-    
+    pinMode(systemLightOff,OUTPUT);
+
     Serial.println("Manual Control Initialized.");
 }
 

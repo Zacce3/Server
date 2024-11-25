@@ -9,8 +9,10 @@
 // Function declarations
 #define systemTogglePinOn 3
 
+
 #define systemTogglePinOff 4
 #define systemLight 5
+#define systemLightOff 6
 bool handleSystemToggle();
 void setupManualControl();
 void handleManualToggle(bool &isWindowOpen);
