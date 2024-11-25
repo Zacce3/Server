@@ -1,10 +1,11 @@
+# Updated Flask server with timer functionality
+
 from flask import Flask, jsonify, render_template_string, request
 import serial
 import threading
 import time
 import socket
 import atexit
-import threading
 
 sensor_data_lock = threading.Lock()
 
@@ -59,16 +60,25 @@ def read_serial():
                                     humidity_str = sanitize_num_str(parts[2].split(":")[1])
                                     distance_str = sanitize_num_str(parts[3].split(":")[1])
                                     with sensor_data_lock:
-                                        sensor_data["co2"] = co2_str 
-                                        sensor_data["temperature"] = temp_str 
+                                        sensor_data["co2"] = co2_str
+                                        sensor_data["temperature"] = temp_str
                                         sensor_data["humidity"] = humidity_str
                                         sensor_data["distance"] = distance_str
                                         sensor_data["window_state"] = "Open" if "Open" in parts[4] else "Closed"
+                            elif line.startswith("Thresholds:"):
+                                # Parse thresholds from the serial output
+                                thresholds = line[len("Thresholds:"):].split(",")
+                                if len(thresholds) == 6:
+                                    with sensor_data_lock:
+                                        sensor_data["co2_open_threshold"] = thresholds[0].strip()
+                                        sensor_data["co2_close_threshold"] = thresholds[1].strip()
+                                        sensor_data["temp_open_threshold"] = thresholds[2].strip()
+                                        sensor_data["temp_close_threshold"] = thresholds[3].strip()
+                                        sensor_data["humidity_open_threshold"] = thresholds[4].strip()
+                                        sensor_data["humidity_close_threshold"] = thresholds[5].strip()
             except Exception as e:
                 print(f"Error reading serial: {e}")
         time.sleep(0.1)
-
-
 
 # Start the serial reading in a separate thread
 if ser:
@@ -96,6 +106,24 @@ def index():
             command = request.form.get('command')
             if ser and command in ['O', 'C']:
                 ser.write((command + '\n').encode('utf-8'))
+        elif 'set_timer' in request.form:
+            # Handle timer command
+            duration = request.form.get('duration', '0').strip()
+            if duration.isdigit() and int(duration) > 0:
+                command = f"Timer,{duration}\n"
+                if ser:
+                    ser.write(command.encode('utf-8'))
+                    print(f"Sent timer command to Arduino: {command}")
+                    time.sleep(0.2)
+            else:
+                print("Invalid timer duration.")
+        elif 'cancel_override' in request.form:
+            # Handle cancel override
+            command = "CancelOverride\n"
+            if ser:
+                ser.write(command.encode('utf-8'))
+                print("Sent cancel override command to Arduino.")
+                time.sleep(0.2)
     return render_template_string("""
     <!DOCTYPE html>
     <html lang="en">
@@ -107,22 +135,34 @@ def index():
             .data { font-size: 18px; margin: 10px; }
             .control { margin: 20px; }
             button { padding: 10px 20px; font-size: 16px; margin: 5px; }
+            input { padding: 5px; font-size: 16px; margin: 5px; width: 100px; }
+            label { display: block; margin: 5px 0 5px; }
+            .container { display: inline-block; text-align: left; }
         </style>
     </head>
     <body>
         <h1>Real-Time Actuator Control</h1>
         <!-- Display sensor data -->
         <div class="data">
-            <p>CO2 Concentration: <span id="co2">{{ co2 }}</span></p>
-            <p>Temperature: <span id="temperature">{{ temperature }}</span></p>
-            <p>Humidity: <span id="humidity">{{ humidity }}</span></p>
+            <p>CO2 Concentration: <span id="co2">{{ co2 }}</span> ppm</p>
+            <p>Temperature: <span id="temperature">{{ temperature }}</span> °C</p>
+            <p>Humidity: <span id="humidity">{{ humidity }}</span> %</p>
             <p>Window State: <span id="window_state">{{ window_state }}</span></p>
         </div>
         <!-- Control buttons -->
         <div class="control">
-            <form method="post">
+            <form method="post" style="display:inline;">
                 <button name="command" value="O">Open Window</button>
                 <button name="command" value="C">Close Window</button>
+            </form>
+            <!-- Timer form -->
+            <form method="post" style="display:inline;">
+                <label for="duration">Set Timer to Close Window (minutes):</label>
+                <input type="text" name="duration" pattern="\d+" required>
+                <button type="submit" name="set_timer">Set Timer</button>
+            </form>
+            <form method="post" style="display:inline;">
+                <button type="submit" name="cancel_override">Cancel Timer</button>
             </form>
             <!-- Settings button -->
             <form action="/settings" method="get" style="display:inline;">
@@ -138,7 +178,6 @@ def index():
                         document.getElementById('co2').innerText = data.co2;
                         document.getElementById('temperature').innerText = data.temperature;
                         document.getElementById('humidity').innerText = data.humidity;
-                        document.getElementById('distance').innerText = data.distance;
                         document.getElementById('window_state').innerText = data.window_state;
                     })
                     .catch(error => console.error('Error fetching data:', error));
@@ -154,7 +193,6 @@ def index():
 def data():
     with sensor_data_lock:
         return jsonify(sensor_data)
-
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
@@ -174,7 +212,7 @@ def settings():
         temp_close_threshold = temp_close_threshold.replace(',', '.')
         humidity_open_threshold = humidity_open_threshold.replace(',', '.')
         humidity_close_threshold = humidity_close_threshold.replace(',', '.')
-
+        
         # Update local sensor_data dictionary
         sensor_data.update({
             "co2_open_threshold": co2_open_threshold,
@@ -184,7 +222,7 @@ def settings():
             "humidity_open_threshold": humidity_open_threshold,
             "humidity_close_threshold": humidity_close_threshold
         })
-
+        
         # Send updated thresholds to Arduino
         if ser:
             # Build the command string
@@ -193,7 +231,7 @@ def settings():
             
             print(f"Sent thresholds to Arduino: {thresholds_string}")
             time.sleep(0.2)
-
+        
         # Confirmation message
         return render_template_string("""
         <!DOCTYPE html>
@@ -256,3 +294,4 @@ if __name__ == "__main__":
     ip_address = get_ip_address()
     print(f"Server is running. Access it at: http://{ip_address}:5000")
     app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
+

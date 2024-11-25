@@ -6,7 +6,8 @@
 #include "ManualControl.h"    // Manual control header for toggle switch
 
 #define distanceSensorPin A0  // Analog pin for the distance sensor
-
+bool overrideMode = false;
+unsigned long overrideTargetTime = 0;
 // Global SensorData instance
 SensorData sensorData;
 
@@ -28,40 +29,50 @@ void setup() {
 }
 
 void loop() {
+    // Handle system toggle
+    if(handleSystemToggle()==true){
+        handleManualToggle(isWindowOpen);
+        digitalWrite(systemLight,HIGH);
+        digitalWrite(systemLightOff,LOW);
+    } else {
+        digitalWrite(systemLight,LOW);
+        digitalWrite(systemLightOff,HIGH);
 
-    while(handleSystemToggle()==true){
-      handleManualToggle(isWindowOpen);
-      digitalWrite(systemLight,HIGH);
-      digitalWrite(systemLightOff,LOW);
-      
-      
-    }
-     digitalWrite(systemLight,LOW);
-     digitalWrite(systemLightOff,HIGH);
-    
-    static unsigned long lastUpdateTime = 0;  // For timing control
-    const unsigned long updateInterval = 2000;  // Update interval in milliseconds
+        // Handle manual toggle
+        handleManualToggle(isWindowOpen);
 
-    // Pass the isWindowOpen variable to handleManualToggle
-    handleManualToggle(isWindowOpen);
+        // Check override mode
+        if (overrideMode) {
+            // Check if target time reached
+            if (millis() >= overrideTargetTime) {
+                // Close the window
+                if (isWindowOpen) {
+                    closeWindow();
+                    Serial.println("Window closed due to timer override.");
+                }
+                // Keep overrideMode active to prevent automatic control
+            }
+            // Bypass automatic control
+        } else {
+            // Automatic control logic
+            static unsigned long lastUpdateTime = 0;  // For timing control
+            const unsigned long updateInterval = 2000;  // Update interval in milliseconds
 
-    // Automatic control logic
-    if (millis() - lastUpdateTime >= updateInterval) {
-        lastUpdateTime = millis();
+            if (millis() - lastUpdateTime >= updateInterval) {
+                lastUpdateTime = millis();
 
-        // Read and update sensor data
-        readAndUpdateSensorData(sensorData);
+                // Read and update sensor data
+                readAndUpdateSensorData(sensorData);
 
-        // Print sensor data to Serial
-        printSensorData(sensorData);
+                // Print sensor data to Serial
+                printSensorData(sensorData);
 
-        // Automatically decide window state
-        decideWindowState(sensorData);
+                // Automatically decide window state
+                decideWindowState(sensorData);
+            }
+        }
     }
 
     // Always check for UART commands
-    //handleWindowCommands();
     handleSerialCommands();
-    // Check for threshold update commands
-    //andleThresholdUpdate();
 }

@@ -1,5 +1,8 @@
 #ifndef AKTUATOR_H
 #define AKTUATOR_H
+// Global variables
+extern bool overrideMode;
+extern unsigned long overrideTargetTime;
 
 #include <Arduino.h>
 

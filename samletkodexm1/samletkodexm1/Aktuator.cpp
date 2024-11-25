@@ -90,11 +90,28 @@ void handleSerialCommands() {
                 openWindow();
             } else if (inputString.equalsIgnoreCase("C")) {
                 closeWindow();
+            } else if (inputString.startsWith("Timer,")) {
+                // Process timer command
+                String durationStr = inputString.substring(6); // Get the duration part
+                int durationSeconds = durationStr.toInt();     // Convert to integer
+                if (durationSeconds > 0) {
+                    overrideMode = true;
+                    overrideTargetTime = millis() + durationSeconds * 1000UL;
+                    Serial.print("Timer set: closing window in ");
+                    Serial.print(durationSeconds);
+                    Serial.println(" seconds.");
+                } else {
+                    Serial.println("Invalid timer duration.");
+                }
+            } else if (inputString.equalsIgnoreCase("CancelOverride")) {
+                overrideMode = false;
+                Serial.println("Override cancelled. Resuming automatic control.");
             } else {
-                Serial.println("Invalid command. Use 'O' for open, 'C' for close, or 'T,' for thresholds.");
+                Serial.println("Invalid command.");
             }
             inputString = ""; // Clear the string for the next command
         }
     }
 }
+
 
